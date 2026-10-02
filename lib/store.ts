@@ -1,4 +1,4 @@
-import { describeRule } from "./rules";
+import { describeRule, sanitizeRules } from "./rules";
 import { createSim, SPIKE_MS, step, type SimState } from "./traffic";
 import type { BreakerMode, BreakerState, GatewayEvent, GatewayEventKind, Rule, RuleDraft, TrafficPoint } from "./types";
 
@@ -83,11 +83,14 @@ function load(): Pick<GatewaySnapshot, "rules"> & { mode?: BreakerMode; throttle
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { rules: DEFAULT_RULES };
-    const data = JSON.parse(raw);
+    const data: unknown = JSON.parse(raw);
+    if (!data || typeof data !== "object") return { rules: DEFAULT_RULES };
+    const d = data as Record<string, unknown>;
+    const pct = typeof d.throttlePercent === "number" && Number.isFinite(d.throttlePercent) ? d.throttlePercent : 30;
     return {
-      rules: Array.isArray(data.rules) ? data.rules : DEFAULT_RULES,
-      mode: data.mode === "block" ? "block" : "throttle",
-      throttlePercent: typeof data.throttlePercent === "number" ? data.throttlePercent : undefined,
+      rules: sanitizeRules(d.rules) ?? DEFAULT_RULES,
+      mode: d.mode === "block" ? "block" : "throttle",
+      throttlePercent: clampThrottle(pct),
     };
   } catch {
     return { rules: DEFAULT_RULES };
@@ -109,6 +112,8 @@ function persist() {
   }
 }
 
+const clampThrottle = (p: number) => Math.min(90, Math.max(5, Math.round(p / 5) * 5));
+
 /* ---------- Takt ---------- */
 
 function init() {
@@ -119,11 +124,11 @@ function init() {
     mode: stored.mode ?? "throttle",
     throttlePercent: stored.throttlePercent ?? 30,
   };
-  // Zwei Minuten Vorlauf, damit das Diagramm nicht leer beginnt.
+  // Fünf Minuten Vorlauf, damit auch die 5-Minuten-Ansicht nicht halb leer beginnt.
   const now = Date.now();
   const points: TrafficPoint[] = [];
   let b = breaker;
-  for (let s = 120; s > 0; s--) {
+  for (let s = HISTORY_SECONDS; s > 0; s--) {
     const r = step(sim, now - s * TICK_MS, stored.rules, b);
     points.push(r.point);
     b = r.breaker;
@@ -139,20 +144,30 @@ function init() {
 
 function tick() {
   if (snapshot.paused) return;
-  const t = Date.now();
-  sim.spikeUntil = snapshot.spikeUntil;
-  const { point, breaker } = step(sim, t, snapshot.rules, snapshot.breaker);
-  const prev = snapshot.points.at(-1);
+  const now = Date.now();
+  const prevLast = snapshot.points.at(-1);
+  // Im Hintergrund-Tab bremst der Browser setInterval. Verpasste Sekunden werden nachgerechnet,
+  // damit das Diagramm keine Lücke mit schräger Linie bekommt.
+  const from = prevLast ? Math.max(prevLast.t + TICK_MS, now - HISTORY_SECONDS * TICK_MS) : now;
+  let breaker = snapshot.breaker;
+  const newPoints: TrafficPoint[] = [];
   const events = [...snapshot.events];
-
-  if (snapshot.breaker.phase === "half-open" && breaker.phase === "closed")
-    events.unshift(event("breaker", "Circuit Breaker geschlossen, voller Durchlass.", t));
-  if (point.load > OVERLOAD_THRESHOLD && (!prev || prev.load <= OVERLOAD_THRESHOLD))
-    events.unshift(event("overload", `Legacy-Backend über Kapazität (${Math.round(point.load * 100)} %).`, t));
+  let prev = prevLast;
+  for (let t = Math.min(from, now); t <= now; t += TICK_MS) {
+    sim.spikeUntil = snapshot.spikeUntil;
+    const r = step(sim, t, snapshot.rules, breaker);
+    if (breaker.phase === "half-open" && r.breaker.phase === "closed")
+      events.unshift(event("breaker", "Circuit Breaker geschlossen, voller Durchlass.", t));
+    if (r.point.load > OVERLOAD_THRESHOLD && (!prev || prev.load <= OVERLOAD_THRESHOLD))
+      events.unshift(event("overload", `Legacy-Backend über Kapazität (${Math.round(r.point.load * 100)} %).`, t));
+    breaker = r.breaker;
+    newPoints.push(r.point);
+    prev = r.point;
+  }
 
   set({
     breaker,
-    points: [...snapshot.points, point].slice(-HISTORY_SECONDS),
+    points: [...snapshot.points, ...newPoints].slice(-HISTORY_SECONDS),
     events: events.slice(0, 40),
   });
 }
@@ -233,7 +248,7 @@ export const actions = {
     persist();
   },
   setThrottle(percent: number) {
-    const p = Math.min(90, Math.max(5, Math.round(percent)));
+    const p = clampThrottle(percent);
     set({ breaker: { ...snapshot.breaker, throttlePercent: p } });
     persist();
   },

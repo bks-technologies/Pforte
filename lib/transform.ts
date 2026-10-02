@@ -38,7 +38,10 @@ export function parseSource(src: string, format: SourceFormat): ParseResult {
     if (e instanceof XmlError) return { ok: false, error: e.message, line: lineOf(src, e.position) };
     const msg = e instanceof Error ? e.message : String(e);
     const pos = /position (\d+)/.exec(msg);
-    return { ok: false, error: `JSON ungültig: ${msg}`, line: pos ? lineOf(src, Number(pos[1])) : undefined };
+    const reason = /end of (JSON )?input|Unterminated/i.test(msg)
+      ? "Text endet zu früh, eine Klammer oder ein Anführungszeichen fehlt."
+      : "Unerwartetes Zeichen.";
+    return { ok: false, error: `JSON ungültig. ${reason}`, line: pos ? lineOf(src, Number(pos[1])) : undefined };
   }
 }
 

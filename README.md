@@ -40,15 +40,13 @@ Annahmen für die Vorführung, keine Messung.
 ```bash
 npm install
 npm run dev     # Port frei wählen, z. B. -- -p 3250 (3000/3100/3200 nutzen andere Projekte)
-npm test        # 26 Tests
+npm test        # 28 Tests
 npm run lint
 npm run build
 ```
 
-## Deploy (erst nach Freigabe durch Sami)
+## Veröffentlichen
 
-1. Repo `bks-technologies/pforte` anlegen und pushen.
-2. Vercel-Projekt aus dem Repo, Region fra1 (`vercel.json`), keine Variablen nötig.
-3. Domain `pforte.bkstechnologies.de` in Vercel hinzufügen, CNAME `pforte` bei IONOS auf den Vercel-Wert.
-   MX-Einträge nicht anfassen.
-4. Datenschutzerklärung ist ein Entwurf (`app/datenschutz/page.tsx`), vor dem Livegang prüfen.
+Schritt-für-Schritt-Anleitung für GitHub, Vercel (fra1, keine Variablen), Domain `pforte.bkstechnologies.de` und das
+GitHub-Profil: **[HOCHLADEN.md](./HOCHLADEN.md)**. Screenshots in `docs/screenshots/`, der fertige Profil-Abschnitt in
+`docs/portfolio-abschnitt.md`. Die Datenschutzerklärung ist ein Entwurf (`app/datenschutz/page.tsx`).

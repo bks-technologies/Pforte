@@ -131,3 +131,35 @@ export function formatTtl(s: number): string {
   if (s < 3600) return s % 60 === 0 ? `${s / 60} Min` : `${s} s`;
   return s % 3600 === 0 ? `${s / 3600} Std` : `${Math.round(s / 60)} Min`;
 }
+
+/**
+ * Gespeicherte Regeln aus dem Browser wieder einlesen. Alles, was nicht wie eine gültige Regel
+ * aussieht (alte Version, von Hand verändert), wird verworfen statt die Seite abstürzen zu lassen.
+ */
+export function sanitizeRules(input: unknown): Rule[] | null {
+  if (!Array.isArray(input)) return null;
+  const out: Rule[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+    if (typeof r.id !== "string" || !r.id) continue;
+    const v = validateRule(
+      {
+        endpoint: typeof r.endpoint === "string" ? r.endpoint : "",
+        method: typeof r.method === "string" ? r.method : "",
+        maxRequests: typeof r.maxRequests === "number" ? r.maxRequests : "",
+        window: typeof r.window === "string" ? r.window : "",
+        cacheTtl: typeof r.cacheTtl === "number" ? r.cacheTtl : "",
+      },
+      out,
+    );
+    if (!v.ok || out.some((x) => x.id === r.id)) continue;
+    out.push({
+      ...v.draft,
+      id: r.id,
+      enabled: r.enabled !== false,
+      createdAt: typeof r.createdAt === "number" ? r.createdAt : 0,
+    });
+  }
+  return out;
+}

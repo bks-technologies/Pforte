@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { allowancePerSecond, cacheHitRate, matchRule, normalizeEndpoint, validateRule } from "@/lib/rules";
+import {
+  allowancePerSecond,
+  cacheHitRate,
+  matchRule,
+  normalizeEndpoint,
+  sanitizeRules,
+  validateRule,
+} from "@/lib/rules";
 import type { Rule } from "@/lib/types";
 
 const rule = (p: Partial<Rule>): Rule => ({
@@ -78,5 +85,17 @@ describe("Kennzahlen", () => {
     expect(cacheHitRate(0)).toBe(0);
     expect(cacheHitRate(300)).toBeGreaterThan(cacheHitRate(30));
     expect(cacheHitRate(86_400)).toBeLessThan(0.85);
+  });
+});
+
+describe("sanitizeRules", () => {
+  it("verwirft Müll und behält gültige Regeln", () => {
+    const good = rule({ id: "ok" });
+    const out = sanitizeRules([null, "x", { foo: 1 }, { ...good, maxRequests: -5, id: "neg" }, good, { ...good }]);
+    expect(out).toEqual([good]);
+  });
+  it("kein Array ergibt null (dann gelten die Beispielregeln)", () => {
+    expect(sanitizeRules({ rules: 1 })).toBeNull();
+    expect(sanitizeRules(undefined)).toBeNull();
   });
 });

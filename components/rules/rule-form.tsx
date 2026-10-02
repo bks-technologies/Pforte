@@ -7,7 +7,9 @@ import {
   allowancePerSecond,
   cacheHitRate,
   formatTtl,
+  matchRule,
   METHODS,
+  normalizeEndpoint,
   validateRule,
   WINDOWS,
   type RuleErrors,
@@ -73,10 +75,26 @@ export function RuleForm({
       ? allowancePerSecond({ maxRequests: max, window: form.window as Rule["window"] })
       : null;
   const hit = form.method === "GET" || form.method === "ANY" ? cacheHitRate(Number.isFinite(ttl) ? ttl : 0) : 0;
+  // Welche Endpunkte des Beispielverkehrs würde die Regel übernehmen? Bestehende, genauere Regeln
+  // gewinnen (dieselbe Zuordnung wie im Gateway), beim Bearbeiten zählt die alte Fassung nicht mit.
   const isWildcard = form.endpoint.trim().endsWith("*");
-  const affected = isWildcard
-    ? TRAFFIC_PROFILE.filter((p) => p.path.startsWith(form.endpoint.trim().slice(0, -1))).map((p) => p.path)
-    : [];
+  const affected = (() => {
+    if (!isWildcard) return [];
+    const preview: Rule = {
+      id: "__preview",
+      endpoint: normalizeEndpoint(form.endpoint),
+      method: (METHODS as string[]).includes(form.method) ? (form.method as Rule["method"]) : "ANY",
+      maxRequests: 1,
+      window: "minute",
+      cacheTtl: 0,
+      enabled: true,
+      createdAt: 0,
+    };
+    const others = rules.filter((r) => r.id !== editing?.id);
+    return TRAFFIC_PROFILE.filter((p) => matchRule([...others, preview], p.path, p.method)?.id === preview.id).map(
+      (p) => p.path,
+    );
+  })();
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4 px-5 py-4">
