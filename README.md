@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pforte · API Gateway & Rate-Limiting Control Panel
 
-## Getting Started
+Eine Demo von [BKS Technologies](https://bkstechnologies.de). Control Panel für ein API-Gateway, das eine
+Mobile App vor einem alten Warenwirtschaftssystem abschirmt. **Der Verkehr ist simuliert, alle Daten sind
+Beispieldaten.** Es gibt kein Backend; Regeln und Breaker-Einstellungen liegen im localStorage.
 
-First, run the development server:
+## Funktionen
+
+- **Verkehr in Echtzeit:** Recharts-Diagramm, eingehende vs. an das Legacy-System weitergeleitete Anfragen pro
+  Sekunde, 1 oder 5 Minuten, Tooltip mit Aufschlüsselung (Cache, 429, 503, Latenz), Kapazitätslinie,
+  Breaker-Phasen als Fläche, Linien per Legende ausblendbar, Anhalten. Knopf „Lastspitze simulieren“.
+- **Regeln:** Endpunkt (exakt oder Präfix mit `*`), Methode, max. Anfragen pro Sekunde/Minute/Stunde, Cache-TTL.
+  Prüfung mit Meldungen am Feld, Dubletten-Erkennung, Vorschau der Wirkung, Bearbeiten, Pausieren, Löschen.
+- **Payload Transformer:** SOAP/XML- oder OData/JSON-Antwort (bearbeitbar) → schlanke JSON-Antwort für die App,
+  Zuordnung je Feld mit Status, Größenvergleich, bewusst zurückgehaltene Felder (Einkaufspreis, interne Notiz).
+- **Circuit Breaker:** Not-Aus ohne Rückfrage, Modus Drosseln (5–90 % der Backend-Kapazität) oder Abfangen
+  (nur Cache, sonst 503). Lösen startet eine Erholungsphase (half-open, 20 s von 25 auf 100 %). Warnung bei Überlast.
+- Protokoll aller Änderungen und Vorfälle.
+
+## Aufbau
+
+Daten-Logik und Oberfläche sind getrennt:
+
+| Ort | Inhalt |
+| --- | --- |
+| `lib/types.ts` | Typen |
+| `lib/rules.ts` | Prüfung, Zuordnung Pfad → Regel, Cache-Modell |
+| `lib/traffic.ts` | Simulation je Sekunde (reine Funktionen, fester Zufallsgenerator), Breaker-Phasen |
+| `lib/xml.ts`, `lib/transform.ts`, `lib/samples.ts` | XML-Leser, Zuordnungen, Beispiel-Antworten |
+| `lib/store.ts` | Zustand ohne React, Takt, Aktionen, localStorage |
+| `lib/use-gateway.ts` | einzige Brücke: `useSyncExternalStore` |
+| `components/dashboard/control-panel.tsx` | einziger Ort, der den Store kennt, reicht Props weiter |
+| `components/**` | reine Darstellung |
+
+Die Zahlen der Simulation (Kapazität 140 Anfragen/s, Grundlast 150/s, Cache-Trefferquote nach TTL) sind
+Annahmen für die Vorführung, keine Messung.
+
+## Entwickeln
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # Port frei wählen, z. B. -- -p 3250 (3000/3100/3200 nutzen andere Projekte)
+npm test        # 26 Tests
+npm run lint
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Deploy (erst nach Freigabe durch Sami)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Repo `bks-technologies/pforte` anlegen und pushen.
+2. Vercel-Projekt aus dem Repo, Region fra1 (`vercel.json`), keine Variablen nötig.
+3. Domain `pforte.bkstechnologies.de` in Vercel hinzufügen, CNAME `pforte` bei IONOS auf den Vercel-Wert.
+   MX-Einträge nicht anfassen.
+4. Datenschutzerklärung ist ein Entwurf (`app/datenschutz/page.tsx`), vor dem Livegang prüfen.
