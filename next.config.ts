@@ -25,7 +25,9 @@ const csp = [
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-  "upgrade-insecure-requests",
+  // Nur auf Vercel (https). Lokal würde Safari damit auch http://localhost auf https hochstufen,
+  // dann laden CSS und JS bei `next start` nicht.
+  ...(process.env.VERCEL ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const nextConfig: NextConfig = {
