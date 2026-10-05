@@ -10,8 +10,8 @@ export const company = {
   country: "Deutschland",
   representative: "Brandon Haydl",
   email: "info@bkstechnologies.de",
-  phone: "015567 136454",
-  phoneIntl: "+4915567136454",
+  phone: "0155 6398 1188",
+  phoneIntl: "+4915563981188",
   registry: { court: "Amtsgericht München", number: "HRB 310983" },
   authority: {
     name: "Bayerisches Landesamt für Datenschutzaufsicht (BayLDA)",
